@@ -1,0 +1,67 @@
+
+name: Liquibase CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Liquibase
+        uses: liquibase/setup-liquibase@v3
+        with:
+          version: '5.0.4'
+          edition: community
+
+      - name: Install H2 driver
+        run: liquibase lpm add h2 --global --skip-existing
+
+      - name: Validate changelog
+        run: |
+          liquibase \
+            --changelog-file=db/db.changelog-master.yaml \
+            validate
+
+      - name: Apply migrations
+        run: |
+          liquibase \
+            --changelog-file=db/db.changelog-master.yaml \
+            --url=jdbc:h2:file:./ci-db \
+            --username=sa \
+            --password= \
+            update
+
+      - name: Test rollback
+        run: |
+          liquibase \
+            --changelog-file=db/db.changelog-master.yaml \
+            --url=jdbc:h2:file:./ci-db \
+            --username=sa \
+            --password= \
+            rollback-count 1
+
+      - name: Reapply migrations
+        run: |
+          liquibase \
+            --changelog-file=db/db.changelog-master.yaml \
+            --url=jdbc:h2:file:./ci-db \
+            --username=sa \
+            --password= \
+            update
+
+      - name: Verify migration status
+        run: |
+          liquibase \
+            --changelog-file=db/db.changelog-master.yaml \
+            --url=jdbc:h2:file:./ci-db \
+            --username=sa \
+            --password= \
+            status
